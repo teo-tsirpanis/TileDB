@@ -1060,24 +1060,21 @@ Status Query::process() {
   // Handle error
   if (!st.ok()) {
     status_ = QueryStatus::FAILED;
-    return st;
-  }
-
   // Check if the query is completed or not.
-  if ((only_dim_label_query() || !strategy_->incomplete()) &&
+  } else if ((only_dim_label_query() || !strategy_->incomplete()) &&
       (!dim_label_queries_ || dim_label_queries_->completed())) {
     // Main query and dimension label query are both completed. Handle the
     // callback, then set status to complete.
-    if (callback_ != nullptr) {
-      callback_(callback_data_);
-    }
     status_ = QueryStatus::COMPLETED;
   } else {
-    // Either the main query or the dimension lable query are incomplete.
+    // Either the main query or the dimension label query are incomplete.
     status_ = QueryStatus::INCOMPLETE;
   }
 
-  return Status::Ok();
+  if (callback_ != nullptr) {
+    callback_(callback_data_);
+  }
+  return st;
 }  // namespace sm
 
 IQueryStrategy* Query::strategy(bool skip_checks_serialization) {
