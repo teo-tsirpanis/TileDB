@@ -243,7 +243,7 @@ void AsyncFx::create_sparse_array() {
 }
 
 void callback(void* v) {
-  *(int*)v = 1;
+  *(volatile int*)v = 1;
 }
 
 void AsyncFx::write_dense_async() {
@@ -309,16 +309,17 @@ void AsyncFx::write_dense_async() {
 
   auto proc_query = [&]() -> void {
     // Submit query asynchronously
-    int callback_made = 0;
-    rc = tiledb_query_submit_async(ctx_, query, callback, &callback_made);
+    volatile int callback_made = 0;
+    rc = tiledb_query_submit_async(ctx_, query, callback, (void*)&callback_made);
     CHECK(rc == TILEDB_OK);
 
     // Wait for query to complete
+    while (!callback_made);
+
     tiledb_query_status_t status;
-    do {
-      rc = tiledb_query_get_status(ctx_, query, &status);
-      CHECK(rc == TILEDB_OK);
-    } while (status != TILEDB_COMPLETED);
+    rc = tiledb_query_get_status(ctx_, query, &status);
+    CHECK(rc == TILEDB_OK);
+    CHECK(status == TILEDB_COMPLETED);
 
     // Finalize query
     rc = tiledb_query_finalize(ctx_, query);
@@ -420,17 +421,18 @@ void AsyncFx::write_sparse_async() {
 
   auto proc_query = [&]() -> void {
     // Submit query asynchronously
-    int callback_made = 0;
-    rc = tiledb_query_submit_async(ctx_, query, callback, &callback_made);
+    volatile int callback_made = 0;
+    rc = tiledb_query_submit_async(ctx_, query, callback,(void*) &callback_made);
     CHECK(rc == TILEDB_OK);
 
     if (rc == TILEDB_OK) {
       // Wait for query to complete
+      while (!callback_made);
+
       tiledb_query_status_t status;
-      do {
-        rc = tiledb_query_get_status(ctx_, query, &status);
-        CHECK(rc == TILEDB_OK);
-      } while (status != TILEDB_COMPLETED);
+      rc = tiledb_query_get_status(ctx_, query, &status);
+      CHECK(rc == TILEDB_OK);
+      CHECK(status == TILEDB_COMPLETED);
 
       // Finalize query
       rc = tiledb_query_finalize(ctx_, query);
@@ -521,8 +523,8 @@ void AsyncFx::write_sparse_async_cancelled() {
 
   auto proc_query = [&]() -> void {
     // Submit query asynchronously
-    int callback_made = 0;
-    rc = tiledb_query_submit_async(ctx_, query, callback, &callback_made);
+    volatile int callback_made = 0;
+    rc = tiledb_query_submit_async(ctx_, query, callback, (void*)&callback_made);
     CHECK(rc == TILEDB_OK);
 
     tiledb_query_status_t status = TILEDB_FAILED;
@@ -532,11 +534,12 @@ void AsyncFx::write_sparse_async_cancelled() {
       rc = tiledb_ctx_cancel_tasks(ctx_);
       CHECK(rc == TILEDB_OK);
 
+      // Wait for query to complete
+      while (!callback_made);
+
       // Check query status
-      do {
-        rc = tiledb_query_get_status(ctx_, query, &status);
-        CHECK(rc == TILEDB_OK);
-      } while (status != TILEDB_COMPLETED && status != TILEDB_FAILED);
+      rc = tiledb_query_get_status(ctx_, query, &status);
+      CHECK(rc == TILEDB_OK);
       CHECK((status == TILEDB_COMPLETED || status == TILEDB_FAILED));
 
       // If the query completed, check the callback was made.
@@ -545,13 +548,13 @@ void AsyncFx::write_sparse_async_cancelled() {
 
     // If it failed, run it again.
     if (status == TILEDB_FAILED) {
-      rc = tiledb_query_submit_async(ctx_, query, callback, &callback_made);
+      callback_made = 0;
+      rc = tiledb_query_submit_async(ctx_, query, callback, (void*)&callback_made);
       CHECK(rc == TILEDB_OK);
       if (rc == TILEDB_OK) {
-        do {
-          rc = tiledb_query_get_status(ctx_, query, &status);
-          CHECK(rc == TILEDB_OK);
-        } while (status != TILEDB_COMPLETED && status != TILEDB_FAILED);
+        while (!callback_made);
+        rc = tiledb_query_get_status(ctx_, query, &status);
+        CHECK(rc == TILEDB_OK);
       }
     }
 
@@ -618,16 +621,18 @@ void AsyncFx::read_dense_async() {
 
   auto proc_query = [&]() -> void {
     // Submit query with callback
-    int callback_made = 0;
-    rc = tiledb_query_submit_async(ctx_, query, callback, &callback_made);
+    volatile int callback_made = 0;
+    rc = tiledb_query_submit_async(ctx_, query, callback, (void*)&callback_made);
     CHECK(rc == TILEDB_OK);
 
     if (rc == TILEDB_OK) {
       // Wait for the query to complete
+      while (!callback_made);
+
       tiledb_query_status_t status;
-      do {
-        tiledb_query_get_status(ctx_, query, &status);
-      } while (status != TILEDB_COMPLETED);
+      rc = tiledb_query_get_status(ctx_, query, &status);
+      CHECK(rc == TILEDB_OK);
+      CHECK(status == TILEDB_COMPLETED);
 
       // Finalize query
       rc = tiledb_query_finalize(ctx_, query);
@@ -735,15 +740,17 @@ void AsyncFx::read_sparse_async() {
 
   auto proc_query = [&]() -> void {
     // Submit query with callback
-    int callback_made = 0;
-    rc = tiledb_query_submit_async(ctx_, query, callback, &callback_made);
+    volatile int callback_made = 0;
+    rc = tiledb_query_submit_async(ctx_, query, callback, (void*)&callback_made);
     CHECK(rc == TILEDB_OK);
 
     // Wait for the query to complete
+    while (!callback_made);
+
     tiledb_query_status_t status;
-    do {
-      tiledb_query_get_status(ctx_, query, &status);
-    } while (status != TILEDB_COMPLETED);
+    rc = tiledb_query_get_status(ctx_, query, &status);
+    CHECK(rc == TILEDB_OK);
+    CHECK(status == TILEDB_COMPLETED);
 
     // Finalize query
     rc = tiledb_query_finalize(ctx_, query);
