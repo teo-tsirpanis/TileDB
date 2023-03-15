@@ -252,18 +252,6 @@ struct DenseArrayFx {
       tiledb_layout_t query_layout,
       int* buffer,
       uint64_t* buffer_sizes);
-
-  /**
-   * Writes a 2D dense subarray by cancelling and re-issuing the query several
-   * times.
-   */
-  void write_dense_subarray_2D_with_cancel(
-      const std::string& array_name,
-      int64_t* subarray,
-      tiledb_query_type_t query_type,
-      tiledb_layout_t query_layout,
-      int* buffer,
-      uint64_t* buffer_sizes);
 };
 
 DenseArrayFx::DenseArrayFx()
@@ -853,106 +841,6 @@ void DenseArrayFx::write_dense_subarray_2D(
   // Close array
   rc = tiledb_array_close(ctx_, array);
   CHECK_SAFE(rc == TILEDB_OK);
-
-  // Clean up
-  tiledb_array_free(&array);
-  tiledb_query_free(&query);
-}
-
-void DenseArrayFx::write_dense_subarray_2D_with_cancel(
-    const std::string& array_name,
-    int64_t* subarray,
-    tiledb_query_type_t query_type,
-    tiledb_layout_t query_layout,
-    int* buffer,
-    uint64_t* buffer_sizes) {
-  // Attribute to focus on and buffers
-  const char* attributes[] = {ATTR_NAME};
-  void* buffers[] = {buffer};
-  const unsigned num_writes = 10;
-
-  // Open array
-  tiledb_array_t* array;
-  int rc = tiledb_array_alloc(ctx_, array_name.c_str(), &array);
-  CHECK(rc == TILEDB_OK);
-  rc = array_open_wrapper(
-      ctx_, TILEDB_WRITE, (serialize_ && refactored_query_v2_), &array);
-  CHECK(rc == TILEDB_OK);
-
-  // Create query
-  tiledb_query_t* query;
-  rc = tiledb_query_alloc(ctx_, array, query_type, &query);
-  REQUIRE(rc == TILEDB_OK);
-  rc = tiledb_query_set_data_buffer(
-      ctx_, query, attributes[0], buffers[0], &buffer_sizes[0]);
-  REQUIRE(rc == TILEDB_OK);
-  rc = tiledb_query_set_subarray(ctx_, query, subarray);
-  REQUIRE(rc == TILEDB_OK);
-  rc = tiledb_query_set_layout(ctx_, query, query_layout);
-  REQUIRE(rc == TILEDB_OK);
-
-  auto proc_query = [&](unsigned i) -> void {
-    rc = tiledb_query_submit_async(ctx_, query, NULL, NULL);
-    REQUIRE(rc == TILEDB_OK);
-    // Cancel it immediately.
-    if (i < num_writes - 1) {
-      rc = tiledb_ctx_cancel_tasks(ctx_);
-      REQUIRE(rc == TILEDB_OK);
-    }
-
-    tiledb_query_status_t status;
-    do {
-      rc = tiledb_query_get_status(ctx_, query, &status);
-      CHECK(rc == TILEDB_OK);
-    } while (status != TILEDB_COMPLETED && status != TILEDB_FAILED);
-    CHECK((status == TILEDB_COMPLETED || status == TILEDB_FAILED));
-
-    // If it failed, run it again.
-    if (status == TILEDB_FAILED) {
-      rc = tiledb_query_submit_async(ctx_, query, NULL, NULL);
-      CHECK(rc == TILEDB_OK);
-      do {
-        rc = tiledb_query_get_status(ctx_, query, &status);
-        CHECK(rc == TILEDB_OK);
-      } while (status != TILEDB_COMPLETED && status != TILEDB_FAILED);
-    }
-    REQUIRE(status == TILEDB_COMPLETED);
-  };
-
-  if (!use_external_subarray_) {
-    // Submit the same query several times, some may be duplicates, some may
-    // be cancelled, it doesn't matter since it's all the same data being
-    // written.
-    // TODO: this doesn't trigger the cancelled path very often.
-    for (unsigned i = 0; i < num_writes; i++) {
-      proc_query(i);
-    }
-
-    rc = tiledb_query_finalize(ctx_, query);
-    REQUIRE(rc == TILEDB_OK);
-  } else {
-    tiledb_subarray_t* query_subarray;
-    tiledb_query_get_subarray_t(ctx_, query, &query_subarray);
-    rc = tiledb_query_set_subarray_t(ctx_, query, query_subarray);
-
-    // Submit the same query several times, some may be duplicates, some may
-    // be cancelled, it doesn't matter since it's all the same data being
-    // written.
-    // TODO: this doesn't trigger the cancelled path very often.
-    for (unsigned i = 0; i < num_writes; i++) {
-      CHECK(rc == TILEDB_OK);
-      proc_query(i);
-    }
-
-    rc = tiledb_query_finalize(ctx_, query);
-    REQUIRE(rc == TILEDB_OK);
-
-    tiledb_subarray_free(&query_subarray);
-  }
-
-  // Close array
-  rc = tiledb_array_close(ctx_, array);
-  CHECK(rc == TILEDB_OK);
 
   // Clean up
   tiledb_array_free(&array);

@@ -300,46 +300,6 @@ class Query {
   }
 
   /**
-   * Submit an async query, with callback. Call returns immediately.
-   *
-   * @note Same notes apply as `Query::submit()`.
-   *
-   * **Example:**
-   * @code{.cpp}
-   * // Create query
-   * tiledb::Query query(...);
-   * // Submit with callback
-   * query.submit_async([]() { std::cout << "Callback: query completed.\n"; });
-   * @endcode
-   *
-   * @param callback Callback function.
-   */
-  template <typename Fn>
-  void submit_async(const Fn& callback) {
-    std::function<void(void*)> wrapper = [&](void*) { callback(); };
-    auto& ctx = ctx_.get();
-    ctx.handle_error(tiledb::impl::tiledb_query_submit_async_func(
-        ctx.ptr().get(), query_.get(), &wrapper, nullptr));
-  }
-
-  /**
-   * Submit an async query, with no callback. Call returns immediately.
-   *
-   * @note Same notes apply as `Query::submit()`.
-   *
-   * **Example:**
-   * @code{.cpp}
-   * // Create query
-   * tiledb::Query query(...);
-   * // Submit with no callback
-   * query.submit_async();
-   * @endcode
-   */
-  void submit_async() {
-    submit_async([]() {});
-  }
-
-  /**
    * Flushes all internal state of a query object and finalizes the query.
    * This is applicable only to global layout writes. It has no effect for
    * any other query type.

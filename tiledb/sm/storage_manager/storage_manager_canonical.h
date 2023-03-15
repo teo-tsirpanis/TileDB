@@ -569,14 +569,6 @@ class StorageManagerCanonical {
   Status array_get_encryption(
       const ArrayDirectory& array_dir, EncryptionType* encryption_type);
 
-  /**
-   * Pushes an async query to the queue.
-   *
-   * @param query The async query.
-   * @return Status
-   */
-  Status async_push_query(Query* query);
-
   /** Cancels all background tasks. */
   Status cancel_all_tasks();
 
@@ -747,14 +739,6 @@ class StorageManagerCanonical {
 
   /** Submits a query for (sync) execution. */
   Status query_submit(Query* query);
-
-  /**
-   * Submits a query for async execution.
-   *
-   * @param query The query to submit.
-   * @return Status
-   */
-  Status query_submit_async(Query* query);
 
   /**
    * Sets a string/string KV "tag" on the storage manager instance.

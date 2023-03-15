@@ -1121,26 +1121,6 @@ Status StorageManagerCanonical::array_get_encryption(
   return Status::Ok();
 }
 
-Status StorageManagerCanonical::async_push_query(Query* query) {
-  cancelable_tasks_.execute(
-      compute_tp(),
-      [this, query]() {
-        // Process query.
-        Status st = query_submit(query);
-        if (!st.ok())
-          logger_->status_no_return_value(st);
-        return st;
-      },
-      [query]() {
-        // Task was cancelled. This is safe to perform in a separate thread,
-        // as we are guaranteed by the thread pool not to have entered
-        // query->process() yet.
-        throw_if_not_ok(query->cancel());
-      });
-
-  return Status::Ok();
-}
-
 Status StorageManagerCanonical::cancel_all_tasks() {
   // Check if there is already a "cancellation" in progress.
   bool handle_cancel = false;
@@ -1599,11 +1579,6 @@ Status StorageManagerCanonical::query_submit(Query* query) {
   auto st = query->process();
 
   return st;
-}
-
-Status StorageManagerCanonical::query_submit_async(Query* query) {
-  // Push the query into the async queue
-  return async_push_query(query);
 }
 
 Status StorageManagerCanonical::set_tag(

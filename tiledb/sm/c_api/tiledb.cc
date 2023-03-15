@@ -1607,19 +1607,6 @@ int32_t tiledb_query_submit(tiledb_ctx_t* ctx, tiledb_query_t* query) {
   return TILEDB_OK;
 }
 
-int32_t tiledb_query_submit_async(
-    tiledb_ctx_t* ctx,
-    tiledb_query_t* query,
-    void (*callback)(void*),
-    void* callback_data) {
-  // Sanity checks
-  if (sanity_check(ctx) == TILEDB_ERR || sanity_check(ctx, query) == TILEDB_ERR)
-    return TILEDB_ERR;
-  throw_if_not_ok(query->query_->submit_async(callback, callback_data));
-
-  return TILEDB_OK;
-}
-
 int32_t tiledb_query_has_results(
     tiledb_ctx_t* ctx, tiledb_query_t* query, int32_t* has_results) {
   // Sanity check
@@ -4571,28 +4558,6 @@ int32_t tiledb_deserialize_fragment_info(
 }
 
 /* ****************************** */
-/*            C++ API             */
-/* ****************************** */
-namespace impl {
-int32_t tiledb_query_submit_async_func(
-    tiledb_ctx_t* ctx,
-    tiledb_query_t* query,
-    void* callback_func,
-    void* callback_data) {
-  if (sanity_check(ctx) == TILEDB_ERR ||
-      sanity_check(ctx, query) == TILEDB_ERR || callback_func == nullptr)
-    return TILEDB_ERR;
-
-  std::function<void(void*)> callback =
-      *reinterpret_cast<std::function<void(void*)>*>(callback_func);
-
-  throw_if_not_ok(query->query_->submit_async(callback, callback_data));
-
-  return TILEDB_OK;
-}
-}  // namespace impl
-
-/* ****************************** */
 /*          FRAGMENT INFO         */
 /* ****************************** */
 
@@ -6098,15 +6063,6 @@ int32_t tiledb_query_submit(tiledb_ctx_t* ctx, tiledb_query_t* query) noexcept {
   return api_entry<tiledb::api::tiledb_query_submit>(ctx, query);
 }
 
-int32_t tiledb_query_submit_async(
-    tiledb_ctx_t* ctx,
-    tiledb_query_t* query,
-    void (*callback)(void*),
-    void* callback_data) noexcept {
-  return api_entry<tiledb::api::tiledb_query_submit_async>(
-      ctx, query, callback, callback_data);
-}
-
 int32_t tiledb_query_has_results(
     tiledb_ctx_t* ctx, tiledb_query_t* query, int32_t* has_results) noexcept {
   return api_entry<tiledb::api::tiledb_query_has_results>(
@@ -7323,18 +7279,6 @@ int32_t tiledb_deserialize_fragment_info(
     tiledb_fragment_info_t* fragment_info) noexcept {
   return api_entry<tiledb::api::tiledb_deserialize_fragment_info>(
       ctx, buffer, serialize_type, array_uri, client_side, fragment_info);
-}
-
-/* ****************************** */
-/*            C++ API             */
-/* ****************************** */
-int32_t tiledb::impl::tiledb_query_submit_async_func(
-    tiledb_ctx_t* ctx,
-    tiledb_query_t* query,
-    void* callback_func,
-    void* callback_data) noexcept {
-  return api_entry<tiledb::api::impl::tiledb_query_submit_async_func>(
-      ctx, query, callback_func, callback_data);
 }
 
 /* ****************************** */

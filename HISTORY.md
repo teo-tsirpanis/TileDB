@@ -84,7 +84,6 @@
 
 ### C API
 
-* Deprecate tiledb_query_submit_async [#3802](https://github.com/TileDB-Inc/TileDB/pull/3802)
 * Deprecate `tiledb_fragment_info_get_name`. [#3791](https://github.com/TileDB-Inc/TileDB/pull/3791)
 * Deprecate `tiledb_query_submit_async`. [#3802](https://github.com/TileDB-Inc/TileDB/pull/3802)
 * Add `tiledb_array_delete_fragments_list` API [#3798](https://github.com/TileDB-Inc/TileDB/pull/3798)

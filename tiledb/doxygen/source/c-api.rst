@@ -462,8 +462,6 @@ Query
     :project: TileDB-C
 .. doxygenfunction:: tiledb_query_submit
     :project: TileDB-C
-.. doxygenfunction:: tiledb_query_submit_async
-    :project: TileDB-C
 .. doxygenfunction:: tiledb_query_get_status
     :project: TileDB-C
 .. doxygenfunction:: tiledb_query_get_type

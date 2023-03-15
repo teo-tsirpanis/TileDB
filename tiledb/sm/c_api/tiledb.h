@@ -2045,57 +2045,6 @@ TILEDB_EXPORT int32_t
 tiledb_query_submit(tiledb_ctx_t* ctx, tiledb_query_t* query) TILEDB_NOEXCEPT;
 
 /**
- * Submits a TileDB query in asynchronous mode.
- *
- * **Examples:**
- *
- * Submit without a callback.
- *
- * @code{.c}
- * tiledb_query_submit_async(ctx, query, NULL, NULL);
- * @endcode
- *
- * Submit with a callback function `print` that takes as input message
- * `msg` and prints it upon completion of the query.
- *
- * @code{.c}
- * const char* msg = "Query completed";
- * tiledb_query_submit_async(ctx, &query, foo, msg);
- * @endcode
- *
- * @param ctx The TileDB context.
- * @param query The query to be submitted.
- * @param callback The function to be called when the query completes.
- * @param callback_data The data to be passed to the \p callback function.
- * @return `TILEDB_OK` for success and `TILEDB_OOM` or `TILEDB_ERR` for error.
- *
- * @note `tiledb_query_finalize` must be invoked after finish writing in
- *     global layout (via repeated invocations of `tiledb_query_submit`),
- *     in order to flush any internal state.
- *
- * @note For the case of reads, if the returned status is `TILEDB_INCOMPLETE`,
- *    TileDB could not fit the entire result in the user's buffers. In this
- *    case, the user should consume the read results (if any), optionally
- *    reset the buffers with `tiledb_query_set_buffer`, and then resubmit the
- *    query until the status becomes `TILEDB_COMPLETED`. If all buffer sizes
- *    after the termination of this function become 0, then this means that
- *    **no** useful data was read into the buffers, implying that larger
- *    buffers are needed for the query to proceed. In this case, the users
- *    must reallocate their buffers (increasing their size), reset the buffers
- *    with `tiledb_query_set_buffer`, and resubmit the query.
- *
- * @note \p callback will be executed in a thread managed by TileDB's internal
- *    thread pool. To allow TileDB to reuse the thread and avoid starving the
- *    thread pool, long-running callbacks should be dispatched to another
- *    thread.
- */
-TILEDB_DEPRECATED_EXPORT int32_t tiledb_query_submit_async(
-    tiledb_ctx_t* ctx,
-    tiledb_query_t* query,
-    void (*callback)(void*),
-    void* callback_data) TILEDB_NOEXCEPT;
-
-/**
  * Checks if the query has returned any results. Applicable only to
  * read queries; it sets `has_results` to `0 in the case of writes.
  *
