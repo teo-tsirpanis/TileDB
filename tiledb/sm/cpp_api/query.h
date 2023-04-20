@@ -300,6 +300,29 @@ class Query {
   }
 
   /**
+   * Deprecated, will be removed in a future release. Call submit() on a
+   * different thread instead.
+   */
+  template <typename Fn>
+  [[deprecated("Call submit() on a different thread instead.")]] void
+  submit_async(const Fn&) {
+    throw std::runtime_error(
+        "Query::submit_async is not supported. Call Query::submit() on a "
+        "different thread instead.");
+  }
+
+  /**
+   * Deprecated, will be removed in a future release. Call submit() on a
+   * different thread instead.
+   */
+  [[deprecated("Call submit() on a different thread instead.")]] void
+  submit_async() {
+    throw std::runtime_error(
+        "Query::submit_async is not supported. Call Query::submit() on a "
+        "different thread instead.");
+  }
+
+  /**
    * Flushes all internal state of a query object and finalizes the query.
    * This is applicable only to global layout writes. It has no effect for
    * any other query type.
