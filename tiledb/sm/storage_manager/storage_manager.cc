@@ -1134,8 +1134,6 @@ Status StorageManagerCanonical::cancel_all_tasks() {
 
   // Handle the cancellation.
   if (handle_cancel) {
-    // Cancel any queued tasks.
-    cancelable_tasks_.cancel_all_tasks();
     throw_if_not_ok(resources().vfs().cancel_all_tasks());
 
     // Wait for in-progress queries to finish.

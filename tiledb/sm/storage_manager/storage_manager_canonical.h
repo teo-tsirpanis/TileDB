@@ -53,7 +53,6 @@
 #include "tiledb/sm/enums/walk_order.h"
 #include "tiledb/sm/filesystem/uri.h"
 #include "tiledb/sm/group/group.h"
-#include "tiledb/sm/misc/cancelable_tasks.h"
 #include "tiledb/sm/misc/types.h"
 #include "tiledb/sm/stats/global_stats.h"
 #include "tiledb/sm/storage_manager/context_resources.h"
@@ -903,10 +902,6 @@ class StorageManagerCanonical {
 
   /** Guards queries_in_progress_ counter. */
   std::condition_variable queries_in_progress_cv_;
-
-  /** Tracks all scheduled tasks that can be safely cancelled before execution.
-   */
-  CancelableTasks cancelable_tasks_;
 
   /** Tags for the context object. */
   std::unordered_map<std::string, std::string> tags_;
