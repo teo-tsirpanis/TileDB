@@ -806,11 +806,6 @@ const std::vector<UpdateValue>& Query::update_values() const {
   return update_values_;
 }
 
-Status Query::cancel() {
-  status_ = QueryStatus::FAILED;
-  return Status::Ok();
-}
-
 Status Query::process() {
   if (status_ == QueryStatus::UNINITIALIZED ||
       status_ == QueryStatus::INITIALIZED)

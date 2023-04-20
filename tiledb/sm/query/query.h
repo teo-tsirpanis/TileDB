@@ -236,14 +236,6 @@ class Query {
   QueryBuffer buffer(const std::string& name) const;
 
   /**
-   * Marks a query that has not yet been started as failed. This should not be
-   * called asynchronously to cancel an in-progress query; for that use the
-   * parent StorageManager's cancellation mechanism.
-   * @return Status
-   */
-  Status cancel();
-
-  /**
    * Finalizes the query, flushing all internal state. Applicable only to global
    * layout writes. It has no effect for any other query type.
    */
