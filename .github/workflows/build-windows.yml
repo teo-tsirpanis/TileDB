@@ -328,18 +328,18 @@ jobs:
               $status = $?
               if (-not $status) {
                 Write-Host "FAILED: Error $status running $exepath"
-                Write-Host "::set-output name=TILEDB_CI_SUCCESS::0"
+                Add-Content -Path $env:GITHUB_OUTPUT -Value "TILEDB_CI_SUCCESS=0"
                 $host.SetShouldExit(1)
               }  elseif ($LastExitCode -ne 0) {
                 Write-Host "FAILED: C++ API example failed $LastExitCode,  $exepath."
-                Write-Host "::set-output name=TILEDB_CI_SUCCESS::0"
+                Add-Content -Path $env:GITHUB_OUTPUT -Value "TILEDB_CI_SUCCESS=0"
                 $host.SetShouldExit($LastExitCode)
               }
 
             } catch {
               $status = $_
               Write-Host "FAILED: exception C API example failed, $status, $exepath."
-              Write-Host "::set-output name=TILEDB_CI_SUCCESS::0"
+              Add-Content -Path $env:GITHUB_OUTPUT -Value "TILEDB_CI_SUCCESS=0"
               $host.SetShouldExit(1)
             }
           }
@@ -361,17 +361,17 @@ jobs:
               $status = $?
               if (-not $status) {
                 Write-Host "FAILED: Error $status running $exepath"
-                Write-Host "::set-output name=TILEDB_CI_SUCCESS::0"
+                Add-Content -Path $env:GITHUB_OUTPUT -Value "TILEDB_CI_SUCCESS=0"
                 $host.SetShouldExit(1)
               } elseif ($LastExitCode -ne 0) {
                 Write-Host "FAILED: C++ API example failed $LastExitCode,  $exepath."
-                Write-Host "::set-output name=TILEDB_CI_SUCCESS::0"
+                Add-Content -Path $env:GITHUB_OUTPUT -Value "TILEDB_CI_SUCCESS=0"
                 $host.SetShouldExit($LastExitCode)
               }
             } catch {
               $status = $_
               Write-Host "FAILED: exception, C++ API example failed, $status, $exepath."
-              Write-Host "::set-output name=TILEDB_CI_SUCCESS::0"
+              Add-Content -Path $env:GITHUB_OUTPUT -Value "TILEDB_CI_SUCCESS=0"
               $host.SetShouldExit(1)
             }
 
