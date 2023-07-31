@@ -48,7 +48,7 @@
 #include <vector>
 
 // Workaround for GCC < 5.0
-#if __GNUG__ && __GNUC__ < 5
+#if not defined(__clang__) && __GNUG__ && __GNUC__ < 5
 #define IS_TRIVIALLY_COPYABLE(T) __has_trivial_copy(T)
 #else
 #define IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
@@ -91,6 +91,13 @@ struct type_to_tiledb<std::byte> {
   using type = std::byte;
   static const tiledb_datatype_t tiledb_type = TILEDB_BLOB;
   static constexpr const char* name = "BLOB";
+};
+
+template <>
+struct type_to_tiledb<bool> {
+  using type = bool;
+  static const tiledb_datatype_t tiledb_type = TILEDB_BOOL;
+  static constexpr const char* name = "BOOL";
 };
 
 template <>

@@ -291,11 +291,14 @@ void check_save_to_file() {
   ss << "sm.var_offsets.bitsize 64\n";
   ss << "sm.var_offsets.extra_element false\n";
   ss << "sm.var_offsets.mode bytes\n";
+  ss << "ssl.verify true\n";
   ss << "vfs.azure.block_list_block_size 5242880\n";
   ss << "vfs.azure.max_parallel_ops " << std::thread::hardware_concurrency()
      << "\n";
+  ss << "vfs.azure.max_retries 5\n";
+  ss << "vfs.azure.max_retry_delay_ms 60000\n";
+  ss << "vfs.azure.retry_delay_ms 800\n";
   ss << "vfs.azure.use_block_list_upload true\n";
-  ss << "vfs.azure.use_https true\n";
   ss << "vfs.file.max_parallel_ops 1\n";
   ss << "vfs.file.posix_directory_permissions 755\n";
   ss << "vfs.file.posix_file_permissions 644\n";
@@ -311,6 +314,7 @@ void check_save_to_file() {
   ss << "vfs.read_ahead_cache_size 10485760\n";
   ss << "vfs.read_ahead_size 102400\n";
   ss << "vfs.s3.bucket_canned_acl NOT_SET\n";
+  ss << "vfs.s3.config_source auto\n";
   ss << "vfs.s3.connect_max_tries 5\n";
   ss << "vfs.s3.connect_scale_factor 25\n";
   ss << "vfs.s3.connect_timeout_ms 10800\n";
@@ -656,12 +660,17 @@ TEST_CASE("C API: Test config iter", "[capi][config]") {
   all_param_values["sm.fragment_info.preload_mbrs"] = "true";
   all_param_values["sm.partial_tile_offsets_loading"] = "false";
 
+  all_param_values["ssl.ca_file"] = "";
+  all_param_values["ssl.ca_path"] = "";
+  all_param_values["ssl.verify"] = "true";
+
   all_param_values["vfs.max_batch_size"] = "104857600";
   all_param_values["vfs.min_batch_gap"] = "512000";
   all_param_values["vfs.min_batch_size"] = "20971520";
   all_param_values["vfs.min_parallel_size"] = "10485760";
   all_param_values["vfs.read_ahead_size"] = "102400";
   all_param_values["vfs.read_ahead_cache_size"] = "10485760";
+  all_param_values["vfs.gcs.endpoint"] = "";
   all_param_values["vfs.gcs.project_id"] = "";
   all_param_values["vfs.gcs.max_parallel_ops"] =
       std::to_string(std::thread::hardware_concurrency());
@@ -676,7 +685,9 @@ TEST_CASE("C API: Test config iter", "[capi][config]") {
   all_param_values["vfs.azure.max_parallel_ops"] =
       std::to_string(std::thread::hardware_concurrency());
   all_param_values["vfs.azure.use_block_list_upload"] = "true";
-  all_param_values["vfs.azure.use_https"] = "true";
+  all_param_values["vfs.azure.max_retries"] = "5";
+  all_param_values["vfs.azure.retry_delay_ms"] = "800";
+  all_param_values["vfs.azure.max_retry_delay_ms"] = "60000";
   all_param_values["vfs.file.posix_file_permissions"] = "644";
   all_param_values["vfs.file.posix_directory_permissions"] = "755";
   all_param_values["vfs.file.max_parallel_ops"] = "1";
@@ -718,6 +729,7 @@ TEST_CASE("C API: Test config iter", "[capi][config]") {
   all_param_values["vfs.hdfs.name_node_uri"] = "";
   all_param_values["vfs.s3.bucket_canned_acl"] = "NOT_SET";
   all_param_values["vfs.s3.object_canned_acl"] = "NOT_SET";
+  all_param_values["vfs.s3.config_source"] = "auto";
 
   std::map<std::string, std::string> vfs_param_values;
   vfs_param_values["max_batch_size"] = "104857600";
@@ -726,6 +738,7 @@ TEST_CASE("C API: Test config iter", "[capi][config]") {
   vfs_param_values["min_parallel_size"] = "10485760";
   vfs_param_values["read_ahead_size"] = "102400";
   vfs_param_values["read_ahead_cache_size"] = "10485760";
+  vfs_param_values["gcs.endpoint"] = "";
   vfs_param_values["gcs.project_id"] = "";
   vfs_param_values["gcs.max_parallel_ops"] =
       std::to_string(std::thread::hardware_concurrency());
@@ -740,7 +753,9 @@ TEST_CASE("C API: Test config iter", "[capi][config]") {
   vfs_param_values["azure.max_parallel_ops"] =
       std::to_string(std::thread::hardware_concurrency());
   vfs_param_values["azure.use_block_list_upload"] = "true";
-  vfs_param_values["azure.use_https"] = "true";
+  vfs_param_values["azure.max_retries"] = "5";
+  vfs_param_values["azure.retry_delay_ms"] = "800";
+  vfs_param_values["azure.max_retry_delay_ms"] = "60000";
   vfs_param_values["file.posix_file_permissions"] = "644";
   vfs_param_values["file.posix_directory_permissions"] = "755";
   vfs_param_values["file.max_parallel_ops"] = "1";
@@ -779,11 +794,13 @@ TEST_CASE("C API: Test config iter", "[capi][config]") {
   vfs_param_values["s3.no_sign_request"] = "false";
   vfs_param_values["s3.bucket_canned_acl"] = "NOT_SET";
   vfs_param_values["s3.object_canned_acl"] = "NOT_SET";
+  vfs_param_values["s3.config_source"] = "auto";
   vfs_param_values["hdfs.username"] = "stavros";
   vfs_param_values["hdfs.kerb_ticket_cache_path"] = "";
   vfs_param_values["hdfs.name_node_uri"] = "";
 
   std::map<std::string, std::string> gcs_param_values;
+  gcs_param_values["endpoint"] = "";
   gcs_param_values["project_id"] = "";
   gcs_param_values["max_parallel_ops"] =
       std::to_string(std::thread::hardware_concurrency());
@@ -800,7 +817,9 @@ TEST_CASE("C API: Test config iter", "[capi][config]") {
   azure_param_values["max_parallel_ops"] =
       std::to_string(std::thread::hardware_concurrency());
   azure_param_values["use_block_list_upload"] = "true";
-  azure_param_values["use_https"] = "true";
+  azure_param_values["max_retries"] = "5";
+  azure_param_values["retry_delay_ms"] = "800";
+  azure_param_values["max_retry_delay_ms"] = "60000";
 
   std::map<std::string, std::string> s3_param_values;
   s3_param_values["scheme"] = "https";
@@ -838,6 +857,7 @@ TEST_CASE("C API: Test config iter", "[capi][config]") {
   s3_param_values["no_sign_request"] = "false";
   s3_param_values["bucket_canned_acl"] = "NOT_SET";
   s3_param_values["object_canned_acl"] = "NOT_SET";
+  s3_param_values["config_source"] = "auto";
 
   // Create an iterator and iterate over all parameters
   tiledb_config_iter_t* config_iter = nullptr;
