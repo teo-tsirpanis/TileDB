@@ -188,6 +188,7 @@ TileOverlap RTree::get_tile_overlap(
 
 void RTree::compute_tile_bitmap(
     const Range& range, unsigned d, std::vector<uint8_t>* tile_bitmap) const {
+  std::ignore = d;
   // Empty tree
   if (domain_ == nullptr || levels_.empty())
     return;
