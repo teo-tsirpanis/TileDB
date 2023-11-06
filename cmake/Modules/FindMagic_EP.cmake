@@ -42,32 +42,44 @@ if(TILEDB_VCPKG)
     install_target_libs(PCRE2::8BIT)
     install_target_libs(PCRE2::POSIX)
   else()
-    find_path(libmagic_INCLUDE_DIR NAMES magic.h)
-    find_library(libmagic_LIBRARIES magic)
-    find_file(libmagic_DICTIONARY magic.mgc
-      PATH_SUFFIXES share/libmagic/misc share/misc
-    )
-
-    include(FindPackageHandleStandardArgs)
-    FIND_PACKAGE_HANDLE_STANDARD_ARGS(libmagic
-      REQUIRED_VARS
-        libmagic_INCLUDE_DIR
-        libmagic_LIBRARIES
-        libmagic_DICTIONARY
-    )
-
-    if(NOT libmagic_FOUND)
-      message(FATAL_ERROR "Error finding libmagic")
+    find_package(PkgConfig)
+    if (PkgConfig_FOUND)
+      pkg_check_modules(libmagic IMPORTED_TARGET libmagic)
     endif()
+    if(libmagic_FOUND)
+      find_file(libmagic_DICTIONARY magic.mgc
+        REQUIRED
+        PATH_SUFFIXES share/libmagic/misc share/misc
+      )
+      add_library(libmagic ALIAS PkgConfig::libmagic)
+    else()
+      find_path(libmagic_INCLUDE_DIR NAMES magic.h)
+      find_library(libmagic_LIBRARIES magic)
+      find_file(libmagic_DICTIONARY magic.mgc
+        PATH_SUFFIXES share/libmagic/misc share/misc
+      )
 
-    add_library(unofficial::libmagic::libmagic UNKNOWN IMPORTED)
-    set_target_properties(unofficial::libmagic::libmagic PROPERTIES
-      IMPORTED_LOCATION "${libmagic_LIBRARIES}"
-      INTERFACE_INCLUDE_DIRECTORIES "${libmagic_INCLUDE_DIR}"
-    )
-    install_target_libs(unofficial::libmagic::libmagic)
+      include(FindPackageHandleStandardArgs)
+      FIND_PACKAGE_HANDLE_STANDARD_ARGS(libmagic
+        REQUIRED_VARS
+          libmagic_INCLUDE_DIR
+          libmagic_LIBRARIES
+          libmagic_DICTIONARY
+      )
+
+      if(NOT libmagic_FOUND)
+        message(FATAL_ERROR "Error finding libmagic")
+      endif()
+
+      add_library(unofficial::libmagic::libmagic UNKNOWN IMPORTED)
+      set_target_properties(unofficial::libmagic::libmagic PROPERTIES
+        IMPORTED_LOCATION "${libmagic_LIBRARIES}"
+        INTERFACE_INCLUDE_DIRECTORIES "${libmagic_INCLUDE_DIR}"
+      )
+      install_target_libs(unofficial::libmagic::libmagic)
+      add_library(libmagic ALIAS unofficial::libmagic::libmagic)
+    endif()
   endif()
-  add_library(libmagic ALIAS unofficial::libmagic::libmagic)
   return()
 endif()
 
