@@ -99,60 +99,6 @@ class S3Exception : public StatusException {
   }
 };
 
-namespace {
-
-/**
- * Return the exception name and error message from the given outcome object.
- *
- * @tparam R AWS result type
- * @tparam E AWS error type
- * @param outcome Outcome to retrieve error message from
- * @return Error message string
- */
-template <typename R, typename E>
-std::string outcome_error_message(const Aws::Utils::Outcome<R, E>& outcome) {
-  if (outcome.IsSuccess()) {
-    return "Success";
-  }
-
-  auto err = outcome.GetError();
-  Aws::StringStream ss;
-
-  ss << "[Error Type: " << static_cast<int>(err.GetErrorType()) << "]"
-     << " [HTTP Response Code: " << static_cast<int>(err.GetResponseCode())
-     << "]";
-
-  if (!err.GetExceptionName().empty()) {
-    ss << " [Exception: " << err.GetExceptionName() << "]";
-  }
-
-  // For some reason, these symbols are not exposed when building with MINGW
-  // so for now we just disable adding the tags on Windows.
-  if constexpr (!platform::is_os_windows) {
-    if (!err.GetRemoteHostIpAddress().empty()) {
-      ss << " [Remote IP: " << err.GetRemoteHostIpAddress() << "]";
-    }
-
-    if (!err.GetRequestId().empty()) {
-      ss << " [Request ID: " << err.GetRequestId() << "]";
-    }
-  }
-
-  if (err.GetResponseHeaders().size() > 0) {
-    ss << " [Headers:";
-    for (auto&& h : err.GetResponseHeaders()) {
-      ss << " '" << h.first << "' = '" << h.second << "'";
-    }
-    ss << "]";
-  }
-
-  ss << " : " << err.GetMessage();
-
-  return ss.str();
-}
-
-}  // namespace
-
 /**
  * The s3-specific configuration parameters.
  *
@@ -490,46 +436,7 @@ class S3Scanner : public LsScanner {
    * @sa LsScanIterator::operator++()
    * @sa S3Scanner::next(typename Iterator::pointer&)
    */
-  typename Iterator::pointer fetch_results() {
-    // If this is our first request, GetIsTruncated() will be false.
-    if (more_to_fetch()) {
-      // If results are truncated on a subsequent request, we set the next
-      // continuation token before resubmitting our request.
-      Aws::String next_marker =
-          list_objects_outcome_.GetResult().GetNextContinuationToken();
-      if (next_marker.empty()) {
-        throw S3Exception(
-            "Failed to retrieve next continuation token for ListObjectsV2 "
-            "request.");
-      }
-      list_objects_request_.SetContinuationToken(std::move(next_marker));
-    } else if (list_objects_outcome_.IsSuccess()) {
-      // If we have previously submitted a successful request and there are no
-      // more results, we've reached the end of the scan.
-      begin_ = end_ = typename Iterator::pointer();
-      return end_;
-    }
-
-    list_objects_outcome_ = client_->ListObjectsV2(list_objects_request_);
-    if (!list_objects_outcome_.IsSuccess()) {
-      throw S3Exception(
-          std::string("Error while listing with prefix '") +
-          this->prefix_.add_trailing_slash().to_string() + "' and delimiter '" +
-          delimiter_ + "'" + outcome_error_message(list_objects_outcome_));
-    }
-    // Update pointers to the newly fetched results.
-    begin_ = list_objects_outcome_.GetResult().GetContents().begin();
-    end_ = list_objects_outcome_.GetResult().GetContents().end();
-
-    if (list_objects_outcome_.GetResult().GetContents().empty()) {
-      // If the request returned no results, we've reached the end of the scan.
-      // We hit this case when the number of objects in the bucket is a multiple
-      // of the current max_keys.
-      return end_;
-    }
-
-    return begin_;
-  }
+  typename Iterator::pointer fetch_results();
 
   /** Pointer to the S3 client initialized by VFS. */
   shared_ptr<TileDBS3Client> client_;
@@ -901,19 +808,7 @@ class S3 : FilesystemBase {
   LsObjects ls_filtered(
       const URI& parent,
       const LsPredicates& predicates,
-      bool recursive = false) const {
-    throw_if_not_ok(init_client());
-    S3Scanner s3_scanner(client_, parent, predicates, recursive);
-    // Prepend each object key with the bucket URI.
-    auto prefix = parent.to_string();
-    prefix = prefix.substr(0, prefix.find('/', 5));
-
-    LsObjects objects;
-    for (auto object : s3_scanner) {
-      objects.emplace_back(prefix + "/" + object.GetKey(), object.GetSize());
-    }
-    return objects;
-  }
+      bool recursive = false) const;
 
   /**
    * Constructs a scanner for listing S3 objects. The scanner can be used to
@@ -930,10 +825,7 @@ class S3 : FilesystemBase {
       const URI& parent,
       const LsPredicates& predicates,
       bool recursive = false,
-      int max_keys = 1000) const {
-    throw_if_not_ok(init_client());
-    return S3Scanner(client_, parent, predicates, recursive, max_keys);
-  }
+      int max_keys = 1000) const;
 
   /**
    * Renames an object.
@@ -1618,60 +1510,6 @@ class S3 : FilesystemBase {
   URI generate_chunk_uri(
       const URI& attribute_uri, const std::string& chunk_name);
 };
-
-S3Scanner::S3Scanner(
-    const shared_ptr<TileDBS3Client>& client,
-    const URI& prefix,
-    const LsPredicates& predicates,
-    bool recursive,
-    int max_keys)
-    : LsScanner(prefix, predicates, recursive)
-    , client_(client)
-    , delimiter_(this->is_recursive_ ? "" : "/") {
-  const auto prefix_dir = prefix.add_trailing_slash();
-  auto prefix_str = prefix_dir.to_string();
-  Aws::Http::URI aws_uri = prefix_str.c_str();
-  if (!prefix_dir.is_s3()) {
-    throw S3Exception("URI is not an S3 URI: " + prefix_str);
-  }
-
-  list_objects_request_.SetBucket(aws_uri.GetAuthority());
-  const std::string aws_uri_str(S3::remove_front_slash(aws_uri.GetPath()));
-  list_objects_request_.SetPrefix(aws_uri_str.c_str());
-  // Empty delimiter returns recursive results from S3.
-  list_objects_request_.SetDelimiter(delimiter_.c_str());
-  // The default max_keys for ListObjects is 1000.
-  list_objects_request_.SetMaxKeys(max_keys);
-
-  if (client_->requester_pays()) {
-    list_objects_request_.SetRequestPayer(
-        Aws::S3::Model::RequestPayer::requester);
-  }
-  fetch_results();
-  next(begin_);
-}
-
-void S3Scanner::next(typename Iterator::pointer& ptr) {
-  if (ptr == end_) {
-    ptr = fetch_results();
-  }
-
-  while (ptr != end_) {
-    auto object = *ptr;
-    uint64_t size = object.GetSize();
-    std::string path = "s3://" + list_objects_request_.GetBucket() +
-                       S3::add_front_slash(object.GetKey());
-
-    // TODO: Add support for directory pruning.
-    if (predicates_.file_filter(path, size)) {
-      // Iterator is at the next object within results accepted by the filters.
-      return;
-    } else {
-      // Object was rejected by the FilePredicate, do not include it in results.
-      advance(ptr);
-    }
-  }
-}
 
 }  // namespace tiledb::sm
 
