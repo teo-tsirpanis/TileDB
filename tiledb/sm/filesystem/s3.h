@@ -410,24 +410,19 @@ class TileDBS3Client : public Aws::S3::S3Client {
  *      with the iterator returned by the previous request. Batch number can be
  *      tracked by the total number of times we submit a ListObjectsV2 request
  *      within fetch_results().
- *
- * @tparam F The FilePredicate type used to filter object results.
- * @tparam D The DirectoryPredicate type used to prune prefix results.
  */
-template <FilePredicate F, DirectoryPredicate D = DirectoryFilter>
-class S3Scanner : public LsScanner<F, D> {
+class S3Scanner : public LsScanner {
  public:
   /** Declare LsScanIterator as a friend class for access to call next(). */
   template <class scanner_type, class T>
   friend class LsScanIterator;
-  using Iterator = LsScanIterator<S3Scanner<F, D>, Aws::S3::Model::Object>;
+  using Iterator = LsScanIterator<S3Scanner, Aws::S3::Model::Object>;
 
   /** Constructor. */
   S3Scanner(
       const std::shared_ptr<TileDBS3Client>& client,
       const URI& prefix,
-      F file_filter,
-      D dir_filter = accept_all_dirs,
+      const LsPredicates& predicates,
       bool recursive = false,
       int max_keys = 1000);
 
@@ -900,19 +895,15 @@ class S3 : FilesystemBase {
    * common prefixes for pruning.
    *
    * @param parent The parent prefix to list sub-paths.
-   * @param f The FilePredicate to invoke on each object for filtering.
-   * @param d The DirectoryPredicate to invoke on each common prefix for
-   *    pruning. This is currently unused, but is kept here for future support.
+   * @param predicates The predicates to use to filter the results.
    * @param recursive Whether to recursively list subdirectories.
    */
-  template <FilePredicate F, DirectoryPredicate D>
   LsObjects ls_filtered(
       const URI& parent,
-      F f,
-      D d = accept_all_dirs,
+      const LsPredicates& predicates,
       bool recursive = false) const {
     throw_if_not_ok(init_client());
-    S3Scanner<F, D> s3_scanner(client_, parent, f, d, recursive);
+    S3Scanner s3_scanner(client_, parent, predicates, recursive);
     // Prepend each object key with the bucket URI.
     auto prefix = parent.to_string();
     prefix = prefix.substr(0, prefix.find('/', 5));
@@ -930,22 +921,18 @@ class S3 : FilesystemBase {
    * or STL constructors supporting initialization via input iterators.
    *
    * @param parent The parent prefix to list sub-paths.
-   * @param f The FilePredicate to invoke on each object for filtering.
-   * @param d The DirectoryPredicate to invoke on each common prefix for
-   *    pruning. This is currently unused, but is kept here for future support.
+   * @param predicates The predicates to use to filter the results.
    * @param recursive Whether to recursively list subdirectories.
    * @param max_keys The maximum number of keys to retrieve per request.
    * @return Fully constructed S3Scanner object.
    */
-  template <FilePredicate F, DirectoryPredicate D>
-  S3Scanner<F, D> scanner(
+  S3Scanner scanner(
       const URI& parent,
-      F f,
-      D d = accept_all_dirs,
+      const LsPredicates& predicates,
       bool recursive = false,
       int max_keys = 1000) const {
     throw_if_not_ok(init_client());
-    return S3Scanner<F, D>(client_, parent, f, d, recursive, max_keys);
+    return S3Scanner(client_, parent, predicates, recursive, max_keys);
   }
 
   /**
@@ -1632,15 +1619,13 @@ class S3 : FilesystemBase {
       const URI& attribute_uri, const std::string& chunk_name);
 };
 
-template <FilePredicate F, DirectoryPredicate D>
-S3Scanner<F, D>::S3Scanner(
+S3Scanner::S3Scanner(
     const shared_ptr<TileDBS3Client>& client,
     const URI& prefix,
-    F file_filter,
-    D dir_filter,
+    const LsPredicates& predicates,
     bool recursive,
     int max_keys)
-    : LsScanner<F, D>(prefix, file_filter, dir_filter, recursive)
+    : LsScanner(prefix, predicates, recursive)
     , client_(client)
     , delimiter_(this->is_recursive_ ? "" : "/") {
   const auto prefix_dir = prefix.add_trailing_slash();
@@ -1666,8 +1651,7 @@ S3Scanner<F, D>::S3Scanner(
   next(begin_);
 }
 
-template <FilePredicate F, DirectoryPredicate D>
-void S3Scanner<F, D>::next(typename Iterator::pointer& ptr) {
+void S3Scanner::next(typename Iterator::pointer& ptr) {
   if (ptr == end_) {
     ptr = fetch_results();
   }
@@ -1679,7 +1663,7 @@ void S3Scanner<F, D>::next(typename Iterator::pointer& ptr) {
                        S3::add_front_slash(object.GetKey());
 
     // TODO: Add support for directory pruning.
-    if (this->file_filter_(path, size)) {
+    if (predicates_.file_filter(path, size)) {
       // Iterator is at the next object within results accepted by the filters.
       return;
     } else {

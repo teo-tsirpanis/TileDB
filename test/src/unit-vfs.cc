@@ -640,8 +640,7 @@ TEMPLATE_LIST_TEST_CASE(
 #ifdef HAVE_S3
     // If testing with recursion use the root directory, otherwise use a subdir.
     auto path = recursive ? fs.temp_dir_ : fs.temp_dir_.join_path("subdir_1");
-    auto ls_objects = fs.get_s3().ls_filtered(
-        path, VFSTestBase::accept_all_files, accept_all_dirs, recursive);
+    auto ls_objects = fs.get_s3().ls_filtered(path, LsPredicates{}, recursive);
 
     auto expected = fs.expected_results();
     if (!recursive) {

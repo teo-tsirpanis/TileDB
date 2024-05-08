@@ -524,21 +524,19 @@ class VFS : private VFSBase, protected S3_within_VFS {
    *    and object size.
    */
   template <FilePredicate F, DirectoryPredicate D = DirectoryFilter>
-  LsObjects ls_recursive(
-      const URI& parent,
-      [[maybe_unused]] F f,
-      [[maybe_unused]] D d = accept_all_dirs) const {
+  LsObjects ls_recursive(const URI& parent, F f, D d = accept_all_dirs) const {
     LsObjects results;
+    DefaultLsPredicates<F, D> predicates{std::move(f), std::move(d)};
     try {
       if (parent.is_file()) {
 #ifdef _WIN32
-        results = win_.ls_filtered(parent, f, d, true);
+        results = win_.ls_filtered(parent, predicates, true);
 #else
-        results = posix_.ls_filtered(parent, f, d, true);
+        results = posix_.ls_filtered(parent, predicates, true);
 #endif
       } else if (parent.is_s3()) {
 #ifdef HAVE_S3
-        results = s3().ls_filtered(parent, f, d, true);
+        results = s3().ls_filtered(parent, predicates, true);
 #else
         throw filesystem::VFSException("TileDB was built without S3 support");
 #endif

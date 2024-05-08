@@ -238,33 +238,72 @@ class LsScanIterator {
 };
 
 /**
+ * Provides predicates to filter the results when performing listing of
+ * files/objects in a VFS.
+ * 
+ * Default implementations of predicates always return true.
+ */
+class LsPredicates {
+ public:
+  /** File predicate used to filter file or object results. */
+  virtual bool file_filter(
+      [[maybe_unused]] const std::string_view& path,
+      [[maybe_unused]] uint64_t size) const {
+    return true;
+  }
+
+  /** Directory predicate used to prune directory or prefix results. */
+  virtual bool directory_filter(
+      [[maybe_unused]] const std::string_view& path) const {
+    return true;
+  }
+};
+
+/**
+ * Implements LsPredicates with templated callable objects.
+ */
+template <FilePredicate F, DirectoryPredicate D = DirectoryFilter>
+class DefaultLsPredicates : public LsPredicates {
+ public:
+  DefaultLsPredicates(F f, D d = accept_all_dirs)
+      : f(std::move(f))
+      , d(std::move(d)) {
+  }
+
+  bool file_filter(const std::string_view& path, uint64_t size) const override {
+    return f(path, size);
+  }
+
+  bool directory_filter(const std::string_view& path) const override {
+    return d(path);
+  }
+
+ private:
+  F f;
+  D d;
+};
+
+/**
  * LsScanner is a base class for scanning a filesystem for objects that match
  * the given file and directory predicates. This should be used as a common
  * base class for future filesystem scanner implementations, similar to
  * S3Scanner.
- *
- * @tparam F The FilePredicate type used to filter object results.
- * @tparam D The DirectoryPredicate type used to prune prefix results.
  */
-template <FilePredicate F, DirectoryPredicate D>
 class LsScanner {
  public:
   /** Constructor. */
   LsScanner(
-      const URI& prefix, F file_filter, D dir_filter, bool recursive = false)
+      const URI& prefix, const LsPredicates& predicates, bool recursive = false)
       : prefix_(prefix)
-      , file_filter_(file_filter)
-      , dir_filter_(dir_filter)
+      , predicates_(predicates)
       , is_recursive_(recursive) {
   }
 
  protected:
   /** URI prefix being scanned and filtered for results. */
   const URI prefix_;
-  /** File predicate used to filter file or object results. */
-  const F file_filter_;
-  /** Directory predicate used to prune directory or prefix results. */
-  const D dir_filter_;
+  /** Predicates to filter file or directory results. */
+  const LsPredicates& predicates_;
   /** Whether or not to recursively scan the prefix. */
   const bool is_recursive_;
 };
@@ -320,9 +359,8 @@ class CallbackWrapperCAPI {
  * Implements the `ls_filtered` function for `std::filesystem` which can be used
  * for Posix and Win32
  */
-template <FilePredicate F, DirectoryPredicate D>
-LsObjects std_filesystem_ls_filtered(
-    const URI& parent, F file_filter, D directory_filter, bool recursive) {
+inline LsObjects std_filesystem_ls_filtered(
+    const URI& parent, const LsPredicates& predicates, bool recursive) {
   /*
    * The input URI was useful to the top-level VFS to identify this is a
    * regular filesystem path, but we don't need the "file://" qualifier
@@ -342,7 +380,8 @@ LsObjects std_filesystem_ls_filtered(
     const auto abspath = entry.path().string();
     const auto absuri = URI(abspath);
     if (entry.is_directory()) {
-      if (file_filter(absuri, 0) || directory_filter(absuri)) {
+      if (predicates.file_filter(absuri, 0) ||
+          predicates.directory_filter(absuri)) {
         qualifyingPaths.push_back(
             std::make_pair(tiledb::sm::URI(abspath).to_string(), 0));
         if (!recursive) {
@@ -358,7 +397,7 @@ LsObjects std_filesystem_ls_filtered(
        * (or symbolic link - split to a separate case if we want to descend into
        * them)
        */
-      if (file_filter(absuri, entry.file_size())) {
+      if (predicates.file_filter(absuri, entry.file_size())) {
         qualifyingPaths.push_back(
             std::make_pair(absuri.to_string(), entry.file_size()));
       }

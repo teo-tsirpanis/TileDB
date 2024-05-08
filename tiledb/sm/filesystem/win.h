@@ -170,21 +170,17 @@ class Win {
    * common prefixes for pruning.
    *
    * @param parent The parent prefix to list sub-paths.
-   * @param f The FilePredicate to invoke on each object for filtering.
-   * @param d The DirectoryPredicate to invoke on each common prefix for
-   *    pruning. This is currently unused, but is kept here for future support.
+   * @param predicates The predicates to use to filter the results.
    * @param recursive Whether to recursively list subdirectories.
    *
    * Note: the return type LsObjects does not match the other "ls" methods so as
    * to match the S3 equivalent API.
    */
-  template <FilePredicate F, DirectoryPredicate D>
   LsObjects ls_filtered(
       const URI& parent,
-      F f,
-      D d = accept_all_dirs,
+      const LsPredicates& predicates,
       bool recursive = false) const {
-    return std_filesystem_ls_filtered<F, D>(parent, f, d, recursive);
+    return std_filesystem_ls_filtered(parent, predicates, recursive);
   }
 
   /**
