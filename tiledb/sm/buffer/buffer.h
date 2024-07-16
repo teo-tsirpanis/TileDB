@@ -35,6 +35,7 @@
 #define TILEDB_BUFFER_H
 
 #include <cinttypes>
+#include "tiledb/common/pmr.h"
 #include "tiledb/common/status.h"
 
 using namespace tiledb::common;
@@ -162,10 +163,11 @@ class BufferBase {
 /**
  * General-purpose buffer. Manages own memory. Writeable.
  */
-class Buffer : public BufferBase {
+template <class Alloc = std::allocator<uint8_t>>
+class OwningMemoryBuffer : public BufferBase {
  public:
   /** Default constructor. */
-  Buffer();
+  OwningMemoryBuffer();
 
   /**
    * Owning constructor for preallocated fixed size Buffer.
@@ -174,7 +176,7 @@ class Buffer : public BufferBase {
    *
    * @param size The size in bytes to preallocate.
    */
-  Buffer(uint64_t size);
+  OwningMemoryBuffer(uint64_t size);
 
   /**
    * Non-owning constructor.
@@ -186,7 +188,7 @@ class Buffer : public BufferBase {
    * @param data The data for the buffer to wrap.
    * @param size The size (in bytes) of the data.
    */
-  Buffer(void* data, uint64_t size);
+  OwningMemoryBuffer(void* data, uint64_t size);
 
   /**
    * Copy constructor.
@@ -196,19 +198,19 @@ class Buffer : public BufferBase {
    * data, this new buffer will wrap the allocation without owning or
    * copying it.
    */
-  Buffer(const Buffer& buff);
+  OwningMemoryBuffer(const OwningMemoryBuffer<Alloc>& buff);
 
   /** Move constructor. */
-  Buffer(Buffer&& buff) noexcept;
+  OwningMemoryBuffer(OwningMemoryBuffer<Alloc>&& buff) noexcept;
 
   /** Copy-assign operator. */
-  Buffer& operator=(const Buffer& buff);
+  OwningMemoryBuffer<Alloc>& operator=(const OwningMemoryBuffer<Alloc>& buff);
 
   /** Move-assign operator. */
-  Buffer& operator=(Buffer&& buff);
+  OwningMemoryBuffer<Alloc>& operator=(OwningMemoryBuffer<Alloc>&& buff);
 
   /** Destructor. */
-  ~Buffer();
+  ~OwningMemoryBuffer();
 
   /** Returns the buffer data. */
   void* data() const;
@@ -260,7 +262,7 @@ class Buffer : public BufferBase {
    *
    * @param other Buffer to swap with.
    */
-  void swap(Buffer& other);
+  void swap(OwningMemoryBuffer<Alloc>& other);
 
   /**
    * Returns the value of type T at the input offset.
@@ -357,6 +359,24 @@ class Buffer : public BufferBase {
    */
   Status ensure_alloced_size(uint64_t nbytes);
 };
+
+/**
+ * Buffer using the default allocator.
+ */
+class Buffer : public OwningMemoryBuffer<> {
+  using OwningMemoryBuffer<>::OwningMemoryBuffer;
+};
+
+namespace pmr {
+/**
+ * Buffer using the polymorphic allocator.
+ */
+class Buffer
+    : public OwningMemoryBuffer<tdb::pmr::polymorphic_allocator<uint8_t>> {
+  using OwningMemoryBuffer<
+      tdb::pmr::polymorphic_allocator<uint8_t>>::OwningMemoryBuffer;
+};
+}  // namespace pmr
 
 /* ****************************** */
 /*          ConstBuffer           */
