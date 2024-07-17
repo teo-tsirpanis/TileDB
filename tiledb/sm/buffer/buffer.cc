@@ -153,53 +153,76 @@ void BufferBase::assert_offset_is_valid(uint64_t offset) const {
 /* ****************************** */
 
 template <class Alloc>
-OwningMemoryBuffer<Alloc>::OwningMemoryBuffer()
+OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(const allocator_type& alloc)
     : BufferBase()
-    , owns_data_(true)
-    , alloced_size_(0) {
+    , vec_(alloc)
+    , owns_data_(true) {
 }
 
 template <class Alloc>
-OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(uint64_t size)
+OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(
+    uint64_t size, const allocator_type& alloc)
     : BufferBase((void*)nullptr, size)
+    , vec_(alloc)
     , owns_data_(true)
-    , alloced_size_(0) {
+    , preallocated_(true) {
   throw_if_not_ok(ensure_alloced_size(size_));
-  preallocated_ = true;
   size_ = 0;
 }
 
 template <class Alloc>
-OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(void* data, const uint64_t size)
+OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(
+    void* data, const uint64_t size, const allocator_type&)
     : BufferBase(data, size)
-    , owns_data_(false)
-    , alloced_size_(0) {
+    , owns_data_(false) {
 }
 
 template <class Alloc>
-OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(const OwningMemoryBuffer<Alloc>& buff)
-    : BufferBase(buff.data_, buff.size_) {
+OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(
+    const OwningMemoryBuffer<Alloc>& buff)
+    : vec_(buff.vec_)
+    , owns_data_(buff.owns_data_)
+    , preallocated_(buff.preallocated_) {
   offset_ = buff.offset_;
-  owns_data_ = buff.owns_data_;
-  alloced_size_ = buff.alloced_size_;
-  preallocated_ = buff.preallocated_;
-
   if (buff.owns_data_ && buff.data_ != nullptr) {
-    data_ = tdb_malloc(alloced_size_);
-    assert(data_);
-    std::memcpy(data_, buff.data_, buff.alloced_size_);
+    data_ = vec_.data();
+    size_ = buff.size_;
   }
 }
 
 template <class Alloc>
-OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(OwningMemoryBuffer<Alloc>&& buff) noexcept
-    : OwningMemoryBuffer() {
-  swap(buff);
+OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(
+    const OwningMemoryBuffer<Alloc>& buff, const allocator_type& alloc)
+    : vec_(buff.vec_, alloc)
+    , owns_data_(buff.owns_data_)
+    , preallocated_(buff.preallocated_) {
+  offset_ = buff.offset_;
+  if (buff.owns_data_ && buff.data_ != nullptr) {
+    data_ = vec_.data();
+    size_ = buff.size_;
+  }
 }
 
 template <class Alloc>
-OwningMemoryBuffer<Alloc>::~OwningMemoryBuffer() {
-  clear();
+OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(
+    OwningMemoryBuffer<Alloc>&& buff) noexcept
+    : BufferBase(
+          std::exchange(buff.data_, nullptr), std::exchange(buff.size_, 0))
+    , vec_(std::move(buff.vec_))
+    , owns_data_(buff.owns_data_)
+    , preallocated_(buff.preallocated_) {
+  offset_ = std::exchange(buff.offset_, 0);
+}
+
+template <class Alloc>
+OwningMemoryBuffer<Alloc>::OwningMemoryBuffer(
+    OwningMemoryBuffer<Alloc>&& buff, const allocator_type& alloc)
+    : BufferBase(
+          std::exchange(buff.data_, nullptr), std::exchange(buff.size_, 0))
+    , vec_(std::move(buff.vec_), alloc)
+    , owns_data_(buff.owns_data_)
+    , preallocated_(buff.preallocated_) {
+  offset_ = std::exchange(buff.offset_, 0);
 }
 
 template <class Alloc>
@@ -215,18 +238,18 @@ void OwningMemoryBuffer<Alloc>::advance_size(const uint64_t nbytes) {
 
 template <class Alloc>
 uint64_t OwningMemoryBuffer<Alloc>::alloced_size() const {
-  return alloced_size_;
+  return vec_.size();
 }
 
 template <class Alloc>
 void OwningMemoryBuffer<Alloc>::clear() {
-  if (data_ != nullptr && owns_data_)
-    tdb_free(data_);
+  if (data_ != nullptr && owns_data_) {
+    vec_.clear();
+  }
 
   data_ = nullptr;
   offset_ = 0;
   size_ = 0;
-  alloced_size_ = 0;
 }
 
 template <class Alloc>
@@ -245,8 +268,8 @@ void* OwningMemoryBuffer<Alloc>::data(const uint64_t offset) const {
 
 template <class Alloc>
 uint64_t OwningMemoryBuffer<Alloc>::free_space() const {
-  assert(alloced_size_ >= size_);
-  return alloced_size_ - size_;
+  assert(alloced_size() >= size_);
+  return alloced_size() - size_;
 }
 
 template <class Alloc>
@@ -261,21 +284,9 @@ Status OwningMemoryBuffer<Alloc>::realloc(const uint64_t nbytes) {
         "Cannot reallocate buffer; Buffer does not own data"));
   }
 
-  if (data_ == nullptr) {
-    data_ = tdb_malloc(nbytes);
-    if (data_ == nullptr) {
-      return LOG_STATUS(Status_BufferError(
-          "Cannot allocate buffer; Memory allocation failed"));
-    }
-    alloced_size_ = nbytes;
-  } else if (nbytes > alloced_size_) {
-    auto new_data = tdb_realloc(data_, nbytes);
-    if (new_data == nullptr) {
-      return LOG_STATUS(Status_BufferError(
-          "Cannot reallocate buffer; Memory allocation failed"));
-    }
-    data_ = new_data;
-    alloced_size_ = nbytes;
+  if (nbytes > alloced_size()) {
+    vec_.resize(nbytes);
+    data_ = vec_.data();
   }
 
   return Status::Ok();
@@ -294,7 +305,7 @@ void OwningMemoryBuffer<Alloc>::set_size(const uint64_t size) {
 
 template <class Alloc>
 void OwningMemoryBuffer<Alloc>::swap(OwningMemoryBuffer<Alloc>& other) {
-  std::swap(alloced_size_, other.alloced_size_);
+  std::swap(vec_, other.vec_);
   std::swap(data_, other.data_);
   std::swap(offset_, other.offset_);
   std::swap(owns_data_, other.owns_data_);
@@ -309,7 +320,7 @@ Status OwningMemoryBuffer<Alloc>::write(ConstBuffer* buff) {
     return LOG_STATUS(Status_BufferError(
         "Cannot write to buffer; Buffer does not own the already stored data"));
 
-  const uint64_t bytes_left_to_write = alloced_size_ - offset_;
+  const uint64_t bytes_left_to_write = alloced_size() - offset_;
   const uint64_t bytes_left_to_read = buff->nbytes_left_to_read();
   const uint64_t bytes_to_copy =
       std::min(bytes_left_to_write, bytes_left_to_read);
@@ -322,7 +333,8 @@ Status OwningMemoryBuffer<Alloc>::write(ConstBuffer* buff) {
 }
 
 template <class Alloc>
-Status OwningMemoryBuffer<Alloc>::write(ConstBuffer* buff, const uint64_t nbytes) {
+Status OwningMemoryBuffer<Alloc>::write(
+    ConstBuffer* buff, const uint64_t nbytes) {
   // Sanity check
   if (!owns_data_)
     return LOG_STATUS(Status_BufferError(
@@ -338,7 +350,8 @@ Status OwningMemoryBuffer<Alloc>::write(ConstBuffer* buff, const uint64_t nbytes
 }
 
 template <class Alloc>
-Status OwningMemoryBuffer<Alloc>::write(const void* buffer, const uint64_t nbytes) {
+Status OwningMemoryBuffer<Alloc>::write(
+    const void* buffer, const uint64_t nbytes) {
   // Sanity check
   if (!owns_data_)
     return LOG_STATUS(Status_BufferError(
@@ -370,7 +383,11 @@ Status OwningMemoryBuffer<Alloc>::write(
 }
 
 template <class Alloc>
-OwningMemoryBuffer<Alloc>& OwningMemoryBuffer<Alloc>::operator=(const OwningMemoryBuffer<Alloc>& buff) {
+OwningMemoryBuffer<Alloc>& OwningMemoryBuffer<Alloc>::operator=(
+    const OwningMemoryBuffer<Alloc>& buff) {
+  if (this == &buff)
+    return *this;
+
   // Clear any existing allocation.
   clear();
 
@@ -382,21 +399,24 @@ OwningMemoryBuffer<Alloc>& OwningMemoryBuffer<Alloc>::operator=(const OwningMemo
 }
 
 template <class Alloc>
-OwningMemoryBuffer<Alloc>& OwningMemoryBuffer<Alloc>::operator=(OwningMemoryBuffer<Alloc>&& buff) {
+OwningMemoryBuffer<Alloc>& OwningMemoryBuffer<Alloc>::operator=(
+    OwningMemoryBuffer<Alloc>&& buff) noexcept {
+  if (this == &buff)
+    return *this;
   swap(buff);
   return *this;
 }
 
 template <class Alloc>
 Status OwningMemoryBuffer<Alloc>::ensure_alloced_size(const uint64_t nbytes) {
-  if (preallocated_ && nbytes > alloced_size_) {
+  if (preallocated_ && nbytes > alloced_size()) {
     throw BufferStatusException(
         "Failed to reallocate. Buffer is preallocated to a fixed size.");
-  } else if (preallocated_ || alloced_size_ >= nbytes) {
+  } else if (preallocated_ || alloced_size() >= nbytes) {
     return Status::Ok();
   }
 
-  auto new_alloc_size = alloced_size_ == 0 ? nbytes : alloced_size_;
+  auto new_alloc_size = alloced_size() == 0 ? nbytes : alloced_size();
   while (new_alloc_size < nbytes)
     new_alloc_size *= 2;
 

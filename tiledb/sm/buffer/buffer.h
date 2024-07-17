@@ -166,8 +166,10 @@ class BufferBase {
 template <class Alloc = std::allocator<uint8_t>>
 class OwningMemoryBuffer : public BufferBase {
  public:
+  using allocator_type = Alloc;
+
   /** Default constructor. */
-  OwningMemoryBuffer();
+  OwningMemoryBuffer(const allocator_type& alloc = {});
 
   /**
    * Owning constructor for preallocated fixed size Buffer.
@@ -175,8 +177,9 @@ class OwningMemoryBuffer : public BufferBase {
    * Buffers using this constructor will never reallocate.
    *
    * @param size The size in bytes to preallocate.
+   * @param alloc The allocator to use.
    */
-  OwningMemoryBuffer(uint64_t size);
+  OwningMemoryBuffer(uint64_t size, const allocator_type& alloc = {});
 
   /**
    * Non-owning constructor.
@@ -187,8 +190,10 @@ class OwningMemoryBuffer : public BufferBase {
    *
    * @param data The data for the buffer to wrap.
    * @param size The size (in bytes) of the data.
+   * @param alloc The allocator to use.
    */
-  OwningMemoryBuffer(void* data, uint64_t size);
+  OwningMemoryBuffer(
+      void* data, uint64_t size, const allocator_type& alloc = {});
 
   /**
    * Copy constructor.
@@ -203,14 +208,35 @@ class OwningMemoryBuffer : public BufferBase {
   /** Move constructor. */
   OwningMemoryBuffer(OwningMemoryBuffer<Alloc>&& buff) noexcept;
 
+  /**
+   * Allocator-aware copy constructor.
+   *
+   * If the given buffer owns its data, this new buffer will make its own copy
+   * of the given buffer's allocation. If the given buffer does not own its
+   * data, this new buffer will wrap the allocation without owning or
+   * copying it.
+   */
+  OwningMemoryBuffer(
+      const OwningMemoryBuffer<Alloc>& buff, const allocator_type& alloc);
+
+  /** Allocator-aware move constructor. */
+  OwningMemoryBuffer(
+      OwningMemoryBuffer<Alloc>&& buff, const allocator_type& alloc);
+
   /** Copy-assign operator. */
   OwningMemoryBuffer<Alloc>& operator=(const OwningMemoryBuffer<Alloc>& buff);
 
   /** Move-assign operator. */
-  OwningMemoryBuffer<Alloc>& operator=(OwningMemoryBuffer<Alloc>&& buff);
+  OwningMemoryBuffer<Alloc>& operator=(
+      OwningMemoryBuffer<Alloc>&& buff) noexcept;
 
   /** Destructor. */
-  ~OwningMemoryBuffer();
+  ~OwningMemoryBuffer() = default;
+
+  /** Get allocator object. */
+  allocator_type get_allocator() const noexcept {
+    return vec_.get_allocator();
+  }
 
   /** Returns the buffer data. */
   void* data() const;
@@ -336,6 +362,14 @@ class OwningMemoryBuffer : public BufferBase {
 
  private:
   /**
+   * The vector that manages the buffer's memory.
+   *
+   * @invariant After any operation that changes the size of the vector, data_
+   * must be updated to point to the vector's data.
+   */
+  std::vector<uint8_t, allocator_type> vec_;
+
+  /**
    * True if the object owns the data buffer, which means that it is
    * responsible for allocating and freeing it.
    */
@@ -346,9 +380,6 @@ class OwningMemoryBuffer : public BufferBase {
    * If this flag is set an error will be thrown when trying to reallocate.
    */
   bool preallocated_ = false;
-
-  /** The allocated buffer size. */
-  uint64_t alloced_size_;
 
   /**
    * Ensure that the allocation is equal to or larger than the given number of
