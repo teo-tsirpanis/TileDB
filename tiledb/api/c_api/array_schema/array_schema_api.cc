@@ -90,7 +90,7 @@ capi_return_t tiledb_array_schema_alloc(
   // Create ArraySchema object
   auto memory_tracker = ctx->resources().create_memory_tracker();
   memory_tracker->set_type(tiledb::sm::MemoryTrackerType::ARRAY_CREATE);
-  *array_schema = tiledb_array_schema_t::make_handle(
+  *array_schema = make_handle<tiledb_array_schema_t>(
       static_cast<tiledb::sm::ArrayType>(array_type), memory_tracker);
 
   return TILEDB_OK;
@@ -99,7 +99,7 @@ capi_return_t tiledb_array_schema_alloc(
 void tiledb_array_schema_free(tiledb_array_schema_t** array_schema) {
   ensure_output_pointer_is_valid(array_schema);
   ensure_array_schema_is_valid(*array_schema);
-  tiledb_array_schema_t::break_handle(*array_schema);
+  break_handle(*array_schema);
 }
 
 capi_return_t tiledb_array_schema_add_attribute(
@@ -197,7 +197,7 @@ capi_return_t tiledb_array_schema_get_enumeration_from_name(
   array_schema->load_enumeration(ctx, enumeration_name);
 
   auto ptr = array_schema->get_enumeration(enumeration_name);
-  *enumeration = tiledb_enumeration_handle_t::make_handle(ptr);
+  *enumeration = make_handle<tiledb_enumeration_handle_t>(ptr);
 
   return TILEDB_OK;
 }
@@ -231,7 +231,7 @@ capi_return_t tiledb_array_schema_get_enumeration_from_attribute_name(
   array_schema->load_enumeration(ctx, enumeration_name->c_str());
 
   auto ptr = array_schema->get_enumeration(enumeration_name->c_str());
-  *enumeration = tiledb_enumeration_handle_t::make_handle(ptr);
+  *enumeration = make_handle<tiledb_enumeration_handle_t>(ptr);
 
   return TILEDB_OK;
 }
@@ -308,7 +308,7 @@ capi_return_t tiledb_array_schema_get_coords_filter_list(
   ensure_array_schema_is_valid(array_schema);
   ensure_output_pointer_is_valid(filter_list);
   // Copy-construct a separate FilterPipeline object
-  *filter_list = tiledb_filter_list_t::make_handle(
+  *filter_list = make_handle<tiledb_filter_list_t>(
       sm::FilterPipeline{array_schema->coords_filters()});
   return TILEDB_OK;
 }
@@ -318,7 +318,7 @@ capi_return_t tiledb_array_schema_get_offsets_filter_list(
   ensure_array_schema_is_valid(array_schema);
   ensure_output_pointer_is_valid(filter_list);
   // Copy-construct a separate FilterPipeline object
-  *filter_list = tiledb_filter_list_t::make_handle(
+  *filter_list = make_handle<tiledb_filter_list_t>(
       sm::FilterPipeline{array_schema->cell_var_offsets_filters()});
   return TILEDB_OK;
 }
@@ -328,7 +328,7 @@ capi_return_t tiledb_array_schema_get_validity_filter_list(
   ensure_array_schema_is_valid(array_schema);
   ensure_output_pointer_is_valid(filter_list);
   // Copy-construct a separate FilterPipeline object
-  *filter_list = tiledb_filter_list_t::make_handle(
+  *filter_list = make_handle<tiledb_filter_list_t>(
       sm::FilterPipeline{array_schema->cell_validity_filters()});
   return TILEDB_OK;
 }
@@ -337,7 +337,7 @@ capi_return_t tiledb_array_schema_get_domain(
     const tiledb_array_schema_t* array_schema, tiledb_domain_t** domain) {
   ensure_array_schema_is_valid(array_schema);
   ensure_output_pointer_is_valid(domain);
-  *domain = tiledb_domain_handle_t::make_handle(array_schema->shared_domain());
+  *domain = make_handle<tiledb_domain_handle_t>(array_schema->shared_domain());
   return TILEDB_OK;
 }
 
@@ -381,7 +381,7 @@ capi_return_t tiledb_array_schema_dump_str(
 
   std::stringstream ss;
   ss << *array_schema->array_schema();
-  *out = tiledb_string_handle_t::make_handle(ss.str());
+  *out = make_handle<tiledb_string_handle_t>(ss.str());
   return TILEDB_OK;
 }
 
@@ -409,7 +409,7 @@ capi_return_t tiledb_array_schema_get_attribute_from_index(
   if (!found_attr) {
     throw CAPIException("Attribute not found, but index is valid!");
   }
-  *attr = tiledb_attribute_handle_t::make_handle(found_attr);
+  *attr = make_handle<tiledb_attribute_handle_t>(found_attr);
   return TILEDB_OK;
 }
 
@@ -437,7 +437,7 @@ capi_return_t tiledb_array_schema_get_attribute_from_name(
         (name_string.empty() ? "<anonymous>" : name) +
         " does not exist for array " + array_schema->array_uri().to_string());
   }
-  *attr = tiledb_attribute_handle_t::make_handle(found_attr);
+  *attr = make_handle<tiledb_attribute_handle_t>(found_attr);
   return TILEDB_OK;
 }
 
@@ -472,7 +472,7 @@ capi_return_t tiledb_array_schema_get_current_domain(
 
   // There is always a current domain on an ArraySchema instance,
   // when none was set explicitly, there is an empty current domain.
-  *current_domain = tiledb_current_domain_handle_t::make_handle(
+  *current_domain = make_handle<tiledb_current_domain_handle_t>(
       array_schema->get_current_domain());
   return TILEDB_OK;
 }
