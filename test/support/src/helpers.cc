@@ -826,7 +826,7 @@ void create_subarray(
     bool coalesce_ranges) {
   (void)layout;
   int32_t rc;
-  tiledb_array_t tdb_array = *make_handle<tiledb_array_t>(array);
+  tiledb_array_t tdb_array(array);
   rc = tiledb_subarray_alloc(ctx, &tdb_array, subarray);
   REQUIRE(rc == TILEDB_OK);
   if (rc == TILEDB_OK) {
